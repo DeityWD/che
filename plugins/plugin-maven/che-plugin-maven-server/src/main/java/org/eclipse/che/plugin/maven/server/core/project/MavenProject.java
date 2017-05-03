@@ -280,9 +280,9 @@ public class MavenProject {
 
 
         File pomFile = null;
-//        if (workingCopyManager != null) {
-//            pomFile = workingCopyManager.getWorkingCopyFile(file.getFullPath().toOSString());
-//        }
+        if (workingCopyManager != null) {
+            pomFile = workingCopyManager.getWorkingCopyFile(file.getFullPath().toOSString());
+        }
 
         return pomFile != null ? pomFile : file.getLocation().toFile();
     }

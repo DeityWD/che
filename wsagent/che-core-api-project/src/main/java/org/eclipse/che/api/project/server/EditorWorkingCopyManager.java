@@ -58,21 +58,15 @@ public class EditorWorkingCopyManager {
     }
 
     public File getWorkingCopyFile(String filePath) {
-        try {
             VirtualFileEntry virtualFileEntry = getWorkingCopy(filePath);
             return virtualFileEntry == null ? null : new File(virtualFileEntry.getVirtualFile().toIoFile().getAbsolutePath());
-        } catch (NotFoundException | ServerException | ConflictException | ForbiddenException e) {
-            e.printStackTrace();
-        }
-
-        return null;
     }
 
     public String getWorkingCopyContent(String filePath)
             throws NotFoundException, ServerException, ConflictException, ForbiddenException {
 
         VirtualFileEntry virtualFileEntry = getWorkingCopy(filePath);
-        return virtualFileEntry.getVirtualFile().getContentAsString();
+        return virtualFileEntry == null ? null : virtualFileEntry.getVirtualFile().getContentAsString();
     }
 
     void onEditorContentUpdated(String endpointId, EditorChangesDto changes) {
@@ -150,8 +144,9 @@ public class EditorWorkingCopyManager {
                     String path = operation.getPath();
                     //TODO check hashes of contents for working copy and base file
                     VirtualFileEntry workingCopy = getWorkingCopy(path);
-                    System.out.println("*********** EditorWorkingCopyManager REMOVE working copy ");
-                    workingCopy.remove();//TODO handle null pointer
+                    if (workingCopy != null) {
+                        workingCopy.remove();
+                    }
                     break;
                 }
                 case SUSPEND: {
@@ -171,9 +166,13 @@ public class EditorWorkingCopyManager {
 
                     String path = operation.getPath();
                     VirtualFileEntry workingCopy = getWorkingCopy(oldPath);
-
                     String newName = getWorkingCopyFileName(path);
-                    workingCopy.getVirtualFile().rename(newName);
+                    if (workingCopy != null) {
+                        workingCopy.getVirtualFile().rename(newName);
+                    }
+
+
+
 
                     break;
                 }
@@ -201,35 +200,62 @@ public class EditorWorkingCopyManager {
 
         String workingCopyPath = getWorkingCopyFileName(filePath);
         FolderEntry workingCopiesStorage = getWorkingCopiesStorage(projectPath);
+        if (workingCopiesStorage == null) {
+            workingCopiesStorage = createWorkingCopiesStorage(projectPath);
+        }
 
         return workingCopiesStorage.createFile(workingCopyPath, file.getInputStream());
     }
 
-    private VirtualFileEntry getWorkingCopy(String filePath)
-            throws NotFoundException, ServerException, ConflictException, ForbiddenException {
-        VirtualFileEntry entry = projectManager.getProjectsRoot().getChild(filePath);
-        if (entry == null) {
-            return null;
+    private VirtualFileEntry getWorkingCopy(String filePath) {
+        VirtualFileEntry entry = null;
+        try {
+            entry = projectManager.getProjectsRoot().getChild(filePath);
+            if (entry == null) {
+                return null;
+            }
+
+            String projectPath = entry.getProject();
+            FolderEntry workingCopiesStorage = getWorkingCopiesStorage(projectPath);
+            if (workingCopiesStorage == null) {
+                return null;
+            }
+
+            String workingCopyPath = getWorkingCopyFileName(filePath);
+            return workingCopiesStorage.getChild(workingCopyPath);
+        } catch (ServerException e) {
+            //ignore
         }
-
-        String projectPath = entry.getPath().getParent().toString();
-        FolderEntry workingCopiesStorage = getWorkingCopiesStorage(projectPath);
-
-        String workingCopyPath = getWorkingCopyFileName(filePath);
-        return workingCopiesStorage.getChild(workingCopyPath);
+        return entry;
     }
 
-    private FolderEntry getWorkingCopiesStorage(String projectPath)
-            throws NotFoundException, ServerException, ConflictException, ForbiddenException {
-        RegisteredProject project = projectManager.getProject(projectPath);
-        FolderEntry baseFolder = project.getBaseFolder();
-        if (baseFolder == null) {
-            throw new NotFoundException("Base folder not found for " + projectPath);
-        }
+    private FolderEntry getWorkingCopiesStorage(String projectPath) {
+        try {
+            RegisteredProject project = projectManager.getProject(projectPath);
+            FolderEntry baseFolder = project.getBaseFolder();
+            if (baseFolder == null) {
+                return null;
+            }
 
-        String tempDirectoryPath = baseFolder.getPath().toString() + WORKING_COPIES_DIR;
-        FolderEntry workingCopiesStorage = projectManager.asFolder(tempDirectoryPath);
-        return workingCopiesStorage != null ? workingCopiesStorage : baseFolder.createFolder(WORKING_COPIES_DIR);
+            String tempDirectoryPath = baseFolder.getPath().toString() + WORKING_COPIES_DIR;
+            return projectManager.asFolder(tempDirectoryPath);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private FolderEntry createWorkingCopiesStorage(String projectPath) {
+        try {
+            RegisteredProject project = projectManager.getProject(projectPath);
+            FolderEntry baseFolder = project.getBaseFolder();
+            if (baseFolder == null) {
+                return null;
+            }
+
+            return baseFolder.createFolder(WORKING_COPIES_DIR);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String getWorkingCopyFileName(String path) {
