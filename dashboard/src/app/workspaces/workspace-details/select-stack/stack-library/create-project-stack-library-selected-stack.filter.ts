@@ -17,20 +17,23 @@
 
 export class CreateProjectStackLibrarySelectedStackFilter {
 
-  constructor(register) {
+  constructor(register: che.IRegisterService) {
     register.app.filter('stackSelectedStackFilter', () => {
-      return function (templates, idFilter) {
+      return (templates: Array<che.IStack>, tagsFilter: string) => {
         if (!templates) {
           return [];
         }
 
-        if (!idFilter || !idFilter.length) {
+        if (!tagsFilter || !tagsFilter.length) {
           return templates;
         }
 
-        var filtered = [];
+        let filtered = templates.filter((template: che.IStack) => {
+          return true;
+        });
+
         templates.forEach((template) => {
-          if (idFilter.indexOf(template.id) > -1) {
+          if (tagsFilter.indexOf(template.id) > -1) {
             filtered.push(template);
           }
         });
